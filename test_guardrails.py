@@ -77,6 +77,12 @@ print("layer 3  cap_rows")
 check("auto limit", demo.cap_rows("SELECT * FROM emp;"), "SELECT * FROM emp LIMIT 100;")
 check("existing limit kept", demo.cap_rows("SELECT * FROM emp LIMIT 5;"),
       "SELECT * FROM emp LIMIT 5;")
+check("huge limit clamped", demo.cap_rows("SELECT * FROM emp LIMIT 999999;"),
+      "SELECT * FROM emp LIMIT 100;")
+check("limit -1 clamped", demo.cap_rows("SELECT * FROM emp LIMIT -1;"),
+      "SELECT * FROM emp LIMIT 100;")
+check("trailing comment stripped", demo.cap_rows("SELECT * FROM emp -- dump"),
+      "SELECT * FROM emp LIMIT 100;")
 
 # -------------------------------------------------------------- test database
 db = os.path.join(tempfile.gettempdir(), "nl2sql_guardrail_test.db")
@@ -110,6 +116,7 @@ for label, sql, want in [
     ("write via update",        "UPDATE emp SET salary = 0",                              "DatabaseError"),
     ("write via delete",        "DELETE FROM emp",                                        "DatabaseError"),
     ("schema change",           "DROP TABLE emp",                                         "DatabaseError"),
+    ("schema introspection",    "SELECT sql FROM sqlite_master WHERE name='secrets'",     "DatabaseError"),
 ]:
     check(label, try_exec(ro, sql), want)
 

@@ -16,8 +16,8 @@ demo 不优化模型接入（那部分只有 5 行），只回答一个问题：
 | # | 层 | 实现位置 | 拦得住 | 拦不住 |
 |---|---|---|---|---|
 | 1 | 语句提取 | `extract_sql()` | 非 SELECT 动词；多语句输出 | 语义上正确、但其实不合意的查询 |
-| 2 | 表名白名单 | `install_authorizer()` | **任意方式访问白名单外的表**（JOIN / 逗号 / 子查询 / CTE / UNION） | 白名单内的表被全量扫描 |
-| 3 | 行数上限 | `cap_rows()` | 无 LIMIT 的查询（自动补 `LIMIT 100`） | 子查询内部的展开 |
+| 2 | 表名白名单 | `install_authorizer()` | **任意方式访问白名单外的表**（JOIN / 逗号 / 子查询 / CTE / UNION），以及 `sqlite_master` 等系统表 | 白名单内的表被全量扫描 |
+| 3 | 行数上限 | `cap_rows()` | 无 LIMIT 的查询自动补 `LIMIT 100`；已有 LIMIT 超大或为负时 clamp 到 100；尾部注释不会吞掉补上的 LIMIT | 子查询内部的展开 |
 | 4 | 只读连接 | `main()` | 任何写操作的物理可能性（`mode=ro`） | 读越权表 |
 | 5 | EXPLAIN 预校验 | `ask()` | 语法错误、引用不存在的列 | 合法但昂贵的查询 |
 
@@ -73,7 +73,7 @@ refused: DatabaseError: access to secrets.id is prohibited
 ## 测试
 
 ```bash
-python test_guardrails.py     # 28 passed, 0 failed
+python test_guardrails.py     # 32 passed, 0 failed
 ```
 
 全离线，不联网、不需要 API key（模型被 stub 掉）。**每一层都测了它应该拦住什么，

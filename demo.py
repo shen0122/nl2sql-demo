@@ -86,7 +86,7 @@ def install_authorizer(con: sqlite3.Connection) -> None:
             return sqlite3.SQLITE_DENY
         if action == sqlite3.SQLITE_READ:
             table = (arg1 or "").lower()
-            if table and table != "sqlite_master" and table not in ALLOWED_TABLES:
+            if table and table not in ALLOWED_TABLES:  # also blocks sqlite_master -> no schema leak
                 return sqlite3.SQLITE_DENY
         return sqlite3.SQLITE_OK
 
@@ -95,10 +95,15 @@ def install_authorizer(con: sqlite3.Connection) -> None:
 
 # ----------------------------------------------------------- guardrail layer 3
 def cap_rows(sql: str) -> str:
-    """Append a row cap when the query does not carry one of its own."""
-    if not re.search(r"(?is)\blimit\b", sql):
-        sql = sql.rstrip().rstrip(";") + f" LIMIT {MAX_ROWS};"
-    return sql
+    """Enforce MAX_ROWS: clamp an existing LIMIT and append one when absent."""
+    m = re.search(r"(?is)\blimit\s+(-?\d+)", sql)
+    if m:
+        n = int(m.group(1))
+        if n >= 0 and n <= MAX_ROWS:
+            return sql
+        return sql[:m.start(1)] + str(MAX_ROWS) + sql[m.end(1):]
+    sql = re.sub(r"(?is)--[^\n]*$", "", sql).rstrip("; \n")  # a trailing comment would swallow the appended LIMIT
+    return sql + f" LIMIT {MAX_ROWS};"
 
 
 # ------------------------------------------------------------------- pipeline
